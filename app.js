@@ -157,10 +157,48 @@ function populateBirthYear() {
   }
 }
 
+function populateSeatingSelect() {
+  if (!db) return;
+  db.ref('tables').once('value', (snapshot) => {
+    const occupied = snapshot.val() || {};
+    const select = $('seat-table-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="" disabled selected>테이블 선택</option>';
+    
+    const descriptions = {
+      1: "1번 (U바 좌측)",
+      2: "2번 (U바 좌측)",
+      3: "3번 (U바 좌측)",
+      4: "4번 (U바 내측)",
+      5: "5번 (U바 내측)",
+      6: "6번 (U바 우측)",
+      7: "7번 (U바 우측)",
+      8: "8번 (U바 우측)"
+    };
+
+    for (let t = 1; t <= 8; t++) {
+      const isTaken = !!occupied[t];
+      const opt = document.createElement('option');
+      opt.value = t;
+      if (isTaken) {
+        opt.textContent = `${descriptions[t]} - [이용 중]`;
+        opt.disabled = true;
+      } else {
+        opt.textContent = descriptions[t];
+      }
+      select.appendChild(opt);
+    }
+  });
+}
+
 // ==================== EVENT BINDINGS ====================
 function bindEvents() {
   // Gate buttons
-  $('btn-kakao-login').onclick = () => showScreen('auth');
+  $('btn-kakao-login').onclick = () => {
+    populateSeatingSelect();
+    showScreen('auth');
+  };
   $('btn-guest-enter').onclick = enterGuestMode;
 
   // Auth Back/Exit buttons
@@ -300,21 +338,32 @@ function handleAuthSubmit(e) {
   const table = parseInt($('seat-table-select').value);
   const age = CURRENT_YEAR - birthYear;
 
+  if (isNaN(table)) { alert('착석할 테이블을 선택해 주세요.'); return; }
+
   // Age gate
   if (gender === 'male' && age < 30) return showBlocked(`남성은 30세 이상만 입장 가능합니다.\n현재 만 ${age}세입니다.`);
   if (gender === 'female' && age < 25) return showBlocked(`여성은 25세 이상만 입장 가능합니다.\n현재 만 ${age}세입니다.`);
 
-  // Commit
-  state.user = { nickname, gender, age, table, mood: 'solo', joinDate: new Date().toLocaleDateString('ko-KR') };
-  state.mode = 'member';
-  state.chats = LS.loadChats();
-  state.ordered = LS.loadOrders().length > 0;
+  // Double check seat availability on Firebase
+  db.ref(`tables/${table}`).once('value', (snapshot) => {
+    if (snapshot.exists()) {
+      alert(`${table}번 테이블은 이미 다른 손님이 착석하셨습니다. 다른 자리를 선택해 주세요.`);
+      populateSeatingSelect();
+      return;
+    }
 
-  LS.saveUser(state.user);
+    // Commit
+    state.user = { nickname, gender, age, table, mood: 'solo', joinDate: new Date().toLocaleDateString('ko-KR') };
+    state.mode = 'member';
+    state.chats = LS.loadChats();
+    state.ordered = LS.loadOrders().length > 0;
 
-  applyMemberSession();
-  showScreen('main');
-  initFirebaseSync();
+    LS.saveUser(state.user);
+
+    applyMemberSession();
+    showScreen('main');
+    initFirebaseSync();
+  });
 }
 
 function showBlocked(reason) {
