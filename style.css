@@ -1385,3 +1385,128 @@ a { color: inherit; text-decoration: none; }
   0%   { box-shadow: 0 0 4px rgba(255, 42, 133, 0.4); border-color: rgba(255, 42, 133, 0.6); }
   100% { box-shadow: 0 0 16px rgba(255, 42, 133, 0.8); border-color: var(--pink); }
 }
+
+/* ── Typing Indicator ── */
+.chat-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+.typing-dots span {
+  animation: blink-dot 1.4s infinite both;
+  font-size: 16px;
+  font-weight: 900;
+  display: inline-block;
+}
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink-dot {
+  0% { opacity: .2; }
+  20% { opacity: 1; }
+  100% { opacity: .2; }
+}
+
+/* ── Profile Modal Overlay & Card ── */
+.profile-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 5, 16, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fade-in-modal 0.25s ease-out;
+}
+@keyframes fade-in-modal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.profile-card-box {
+  width: 100%;
+  max-width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px 24px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  animation: pop-up-modal 0.3s var(--ease-spring);
+}
+@keyframes pop-up-modal {
+  from { transform: scale(0.9) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.profile-close-btn {
+  position: absolute;
+  top: 14px; right: 18px;
+  font-size: 24px;
+  color: var(--text-3);
+  transition: color 0.15s;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.profile-close-btn:active { color: var(--pink); }
+.profile-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.profile-avatar-bubble {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  border: 1.5px solid var(--border-gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  box-shadow: 0 0 16px var(--gold-dim);
+}
+.profile-mood-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid var(--border);
+  display: inline-block;
+}
+.profile-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.profile-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  padding-bottom: 8px;
+}
+.info-label { color: var(--text-3); }
+.info-val { color: var(--text-1); font-weight: 600; }
+
+/* ── Group Chat Row Visual ── */
+.chat-list-row.group-row {
+  border-color: rgba(212, 175, 55, 0.4);
+  background: rgba(212, 175, 55, 0.03);
+}
+.chat-list-row.group-row .row-av {
+  border-color: var(--gold);
+  background: var(--gold-dim);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.15);
+}
+.chat-list-row.group-row .row-title {
+  color: var(--gold);
+}

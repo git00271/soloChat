@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=5.5.2">
+  <link rel="stylesheet" href="style.css?v=5.6.0">
 </head>
 <body>
 
@@ -378,6 +378,10 @@
           <div id="chat-msgs" class="chat-msgs">
             <!-- Messages populated via JS -->
           </div>
+          <div id="chat-typing-indicator" class="chat-typing-indicator hidden">
+            <span id="chat-typing-text">대화 상대가 입력 중</span>
+            <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>
+          </div>
           <div class="chat-input-row">
             <input id="chat-input" type="text" placeholder="귓속말 입력..." autocomplete="off">
             <button id="btn-chat-send" class="btn-send">→</button>
@@ -444,10 +448,41 @@
     </div>
   </div>
 
+  <!-- Screen Profile Card Modal Overlay -->
+  <div id="profile-card-modal" class="profile-modal-overlay hidden">
+    <div class="profile-card-box">
+      <button id="btn-profile-close" class="profile-close-btn">×</button>
+      <div class="profile-card-header">
+        <span id="profile-avatar" class="profile-avatar-bubble">🧔</span>
+        <h3 id="profile-title">1번 테이블 정우</h3>
+        <span id="profile-mood" class="profile-mood-badge">🟢 대화 환영</span>
+      </div>
+      <div class="profile-card-body">
+        <div class="profile-info-row">
+          <span class="info-label">MBTI</span>
+          <span id="profile-mbti" class="info-val">ENTJ</span>
+        </div>
+        <div class="profile-info-row">
+          <span class="info-label">관심사</span>
+          <span id="profile-interests" class="info-val">금융, 테크, 골프</span>
+        </div>
+        <div class="profile-info-row">
+          <span class="info-label">선호 주종</span>
+          <span id="profile-fav-drink" class="info-val">싱글몰트 위스키</span>
+        </div>
+        <div class="profile-info-row">
+          <span class="info-label">매너 평가</span>
+          <span id="profile-rating" class="info-val">⭐ 4.9</span>
+        </div>
+      </div>
+      <button id="btn-profile-start-chat" class="btn-primary">💬 귓속말 시작하기</button>
+    </div>
+  </div>
+
 </div><!-- /app-root -->
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script src="app.js?v=5.5.2"></script>
+<script src="app.js?v=5.6.0"></script>
 </body>
 </html>
