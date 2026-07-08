@@ -1249,3 +1249,9 @@ function showCheers(tipItem) {
   overlay.classList.remove('hidden');
   setTimeout(() => overlay.classList.add('hidden'), 4000);
 }
+
+function getRoomId(t1, t2) {
+  const n1 = parseInt(t1) || 99;
+  const n2 = parseInt(t2) || 99;
+  return n1 < n2 ? `${n1}_${n2}` : `${n2}_${n1}`;
+}
