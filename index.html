@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOKJU - Premium Solo Bar</title>
+  <!-- Google Fonts: Outfit & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Global App Wrapper (Simulates mobile screen on desktop) -->
+  <div class="mobile-frame">
+    
+    <!-- ==================== SCREEN 1: ENTRY & GATE ==================== -->
+    <div id="screen-gate" class="screen active">
+      <div class="ambient-glow bg-magenta"></div>
+      <div class="ambient-glow bg-gold"></div>
+      
+      <div class="gate-content">
+        <div class="brand-logo">
+          <span class="logo-subtitle">PREMIUM BAR TALK PLATFORM</span>
+          <h1 class="logo-title">DOKJU</h1>
+          <span class="logo-version">NanoBanana V3</span>
+        </div>
+        
+        <p class="gate-desc">
+          오직 30대 이상 남성과 25세 이상 여성만을 위한<br>
+          U자형 바(Bar) 기반 프라이빗 혼술 매칭 서비스
+        </p>
+
+        <div class="gate-legal-banner">
+          <div class="legal-badge">법적 안전지대</div>
+          <p>DOKJU는 일반음식점 규정을 엄격히 준수합니다.<br>스태프가 직접 합석이나 좌석 이동을 주선하지 않습니다.</p>
+        </div>
+
+        <button id="btn-kakao-login" class="btn btn-kakao">
+          <svg class="kakao-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3c-5.52 0-10 3.58-10 8 0 2.9 1.92 5.43 4.8 6.8-.2.7-.72 2.58-.83 2.97-.13.48.17.47.36.35.15-.1 2.37-1.6 3.32-2.24.43.08.87.12 1.35.12 5.52 0 10-3.58 10-8s-4.48-8-10-8z"/>
+          </svg>
+          카카오로 1초 시작하기
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 2: KAKAO AUTH & AGE GATE ==================== -->
+    <div id="screen-auth" class="screen">
+      <div class="auth-header">
+        <span class="auth-title">Kakao 간편로그인</span>
+        <button id="btn-auth-close" class="btn-close">&times;</button>
+      </div>
+      
+      <div class="auth-body">
+        <div class="kakao-profile-request">
+          <div class="kakao-avatar">💡</div>
+          <div class="kakao-info">
+            <h4>DOKJU</h4>
+            <p>서비스 이용을 위해 아래 개인정보 제공에 동의해 주세요.</p>
+          </div>
+        </div>
+
+        <form id="auth-form" class="auth-form">
+          <!-- Gender Select -->
+          <div class="form-group">
+            <label class="form-label">성별 (Gender)</label>
+            <div class="gender-selector">
+              <label class="gender-btn">
+                <input type="radio" name="gender" value="male" required>
+                <span>남성 (Male)</span>
+              </label>
+              <label class="gender-btn">
+                <input type="radio" name="gender" value="female">
+                <span>여성 (Female)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Birth Year Select -->
+          <div class="form-group">
+            <label for="birth-year" class="form-label">출생 연도 (Birth Year)</label>
+            <select id="birth-year" name="birthYear" class="form-select" required>
+              <option value="" disabled selected>연도를 선택하세요</option>
+              <!-- Populated by JS -->
+            </select>
+          </div>
+
+          <!-- Table Number Select -->
+          <div class="form-group">
+            <label for="seat-table-select" class="form-label">착석한 테이블 번호 (Table Number)</label>
+            <select id="seat-table-select" name="tableNumber" class="form-select" required>
+              <option value="" disabled selected>테이블 번호를 선택하세요</option>
+              <option value="1">1번 테이블 (U바 좌측)</option>
+              <option value="2">2번 테이블 (U바 좌측)</option>
+              <option value="3">3번 테이블 (U바 좌측)</option>
+              <option value="4">4번 테이블 (U바 내측)</option>
+              <option value="5">5번 테이블 (U바 내측)</option>
+              <option value="6">6번 테이블 (U바 우측)</option>
+              <option value="7">7번 테이블 (U바 우측)</option>
+              <option value="8">8번 테이블 (U바 우측)</option>
+            </select>
+          </div>
+
+          <!-- Terms & Legal Consent -->
+          <div class="terms-container">
+            <label class="terms-item header-terms">
+              <input type="checkbox" id="chk-all-terms">
+              <span class="checkmark"></span>
+              <strong>전체 동의하기</strong>
+            </label>
+            
+            <div class="terms-divider"></div>
+            
+            <label class="terms-item">
+              <input type="checkbox" class="chk-sub-term" required>
+              <span class="checkmark"></span>
+              <span>[필수] 개인정보 수집 및 동의</span>
+            </label>
+            
+            <label class="terms-item">
+              <input type="checkbox" class="chk-sub-term" required>
+              <span class="checkmark"></span>
+              <span>[필수] DOKJU 서비스 이용 약관</span>
+            </label>
+
+            <!-- LEGAL DEFENSE AGREEMENT -->
+            <label class="terms-item legal-consent-box">
+              <input type="checkbox" id="chk-legal-consent" class="chk-sub-term" required>
+              <span class="checkmark"></span>
+              <span class="legal-text">
+                <strong>[필수] 디지털 소통 자율 약관 동의</strong>
+                <p>본 플랫폼은 고객 간 자율적인 디지털 메시지(귓속말) 교환 기능만을 제공합니다. 일반음식점 영업 준수사항에 의거하여, 바텐더 및 매장 종사자는 손님의 자리를 직접 이동시켜 합석을 주선하거나 동석하지 않음을 확약합니다.</p>
+              </span>
+            </label>
+          </div>
+
+          <button type="submit" id="btn-auth-submit" class="btn btn-submit">동의하고 계속하기</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 3: BLOCKED GATE ==================== -->
+    <div id="screen-blocked" class="screen">
+      <div class="blocked-container">
+        <div class="blocked-icon">⚠️</div>
+        <h2 class="blocked-title">입장 제한 안내</h2>
+        <p id="blocked-reason" class="blocked-desc">
+          DOKJU의 프리미엄 매장 수질 관리 정책에 따라 가입이 제한됩니다.
+        </p>
+        <div class="blocked-details">
+          <p><strong>수질 관리 기준:</strong> 남성 30세 이상 / 여성 25세 이상 입장 가능</p>
+          <p class="warning-alert">* 매장 입장 시 실제 신분증 대조 작업이 진행되며, 위조 확인 시 즉시 퇴장 조치됩니다.</p>
+        </div>
+        <button id="btn-blocked-back" class="btn btn-secondary">뒤로가기</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 4: APP SHELL (MAIN ENVIRONMENT) ==================== -->
+    <div id="screen-main" class="screen">
+      
+      <!-- Real-time FLEX Board -->
+      <div class="flex-banner-container">
+        <div class="flex-title">FLEX Ranking</div>
+        <div class="flex-ticker-wrap">
+          <div id="flex-ticker" class="flex-ticker">
+            <!-- Populated dynamically via JS -->
+            <span class="ticker-item gold">🍾 3번 테이블 Dom Pérignon 1.2M popping! 🔥</span>
+            <span class="ticker-item">🥃 7번 테이블 Macallan 18y ordered! 👑</span>
+            <span class="ticker-item magenta">💖 5번 테이블 바텐더 혜원에게 팁 선물! 🎉</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
+      <div id="main-content" class="main-content">
+        
+        <!-- ==================== TAB: U-BAR ==================== -->
+        <div id="tab-content-bar" class="tab-content active">
+          
+          <!-- User Status Section -->
+          <div class="user-status-card">
+            <div class="user-info">
+              <span class="table-badge">My Table: <span id="user-display-table">5</span></span>
+              <span id="user-display-age" class="user-age-gender">M32</span>
+            </div>
+            
+            <!-- Toggle Switch -->
+            <div class="mood-toggle-container">
+              <span class="mood-label">나의 상태:</span>
+              <div class="mood-switch-wrapper">
+                <button id="mood-btn-solo" class="mood-btn active">
+                  <span>🤫 조용한 혼술</span>
+                </button>
+                <button id="mood-btn-talk" class="mood-btn">
+                  <span>🟢 대화 환영</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- U-shaped Bar Layout Map -->
+          <div class="bar-map-section">
+            <h3 class="section-title">U자형 바 현황도</h3>
+            <p class="section-subtitle">테이블을 터치하여 귓속말을 보내보세요</p>
+            
+            <div class="u-bar-layout">
+              <div class="u-bar-top-bar"></div>
+              
+              <!-- Grid of Seats around U-shape -->
+              <div class="seats-container">
+                <!-- Row 1: Left Wing -->
+                <div class="seat-wing left-wing">
+                  <div class="seat-node occupied male welcome" data-table="1">
+                    <span class="seat-num">1</span>
+                    <span class="seat-icon">👦🏻</span>
+                    <span class="seat-badge">대화</span>
+                  </div>
+                  <div class="seat-node occupied female solo" data-table="2">
+                    <span class="seat-num">2</span>
+                    <span class="seat-icon">👩🏼</span>
+                    <span class="seat-badge">혼술</span>
+                  </div>
+                  <div class="seat-node occupied male welcome" data-table="3">
+                    <span class="seat-num">3</span>
+                    <span class="seat-icon">👨🏽</span>
+                    <span class="seat-badge">대화</span>
+                  </div>
+                </div>
+
+                <!-- Row 2: Bottom curves/Inside Bar Center (Bartender Zone) -->
+                <div class="bar-center-zone">
+                  <div class="bartender-avatar">
+                    <div class="glow-ring"></div>
+                    <span>🍸</span>
+                    <span class="bartender-name">바텐더 (대화대기)</span>
+                  </div>
+                </div>
+
+                <!-- Row 3: Right Wing -->
+                <div class="seat-wing right-wing">
+                  <div class="seat-node occupied female welcome" data-table="6">
+                    <span class="seat-num">6</span>
+                    <span class="seat-icon">👩🏻</span>
+                    <span class="seat-badge">대화</span>
+                  </div>
+                  <div class="seat-node empty" data-table="7">
+                    <span class="seat-num">7</span>
+                    <span class="seat-icon">➕</span>
+                    <span class="seat-badge">빈자리</span>
+                  </div>
+                  <div class="seat-node occupied male welcome" data-table="8">
+                    <span class="seat-num">8</span>
+                    <span class="seat-icon">🧔🏾</span>
+                    <span class="seat-badge">대화</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="map-legend">
+              <span class="legend-item"><span class="dot male"></span> 남성</span>
+              <span class="legend-item"><span class="dot female"></span> 여성</span>
+              <span class="legend-item"><span class="dot welcome"></span> 대화 환영</span>
+              <span class="legend-item"><span class="dot solo"></span> 혼술 모드</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== TAB: MENU ==================== -->
+        <div id="tab-content-menu" class="tab-content">
+          <!-- Sub Category Tabs -->
+          <div class="category-tabs">
+            <button class="category-btn active" data-category="bottle">🍾 Bottles</button>
+            <button class="category-btn" data-category="glass">🥃 Glasses</button>
+            <button class="category-btn" data-category="corkage">🍽️ 콜키지</button>
+            <button class="category-btn" data-category="tips">💝 Cheers (팁)</button>
+          </div>
+
+          <!-- Product Grid -->
+          <div id="menu-items-container" class="menu-items-grid">
+            <!-- Populated via JS -->
+          </div>
+
+          <!-- Mini Cart Section -->
+          <div class="cart-bar">
+            <div class="cart-info">
+              <span class="cart-count">선택: <strong id="cart-qty">0</strong>개</span>
+              <span class="cart-total">합계: <strong id="cart-total-amount">0</strong>원</span>
+            </div>
+            <button id="btn-cart-checkout" class="btn btn-checkout">주문하기</button>
+          </div>
+        </div>
+
+        <!-- ==================== TAB: CHAT ==================== -->
+        <div id="tab-content-chat" class="tab-content">
+          
+          <!-- Locked Overlay for Paid Message Restriction -->
+          <div id="chat-lock-overlay" class="chat-lock-overlay active">
+            <div class="lock-box">
+              <span class="lock-icon">🔒</span>
+              <h3>귓속말 잠금 해제 필요</h3>
+              <p>DOKJU의 매너 있는 프리미엄 커뮤니티 유지를 위해,<br>첫 주류 주문(바틀 또는 잔술)이 완료되어야만 타 테이블에 귓속말을 보낼 수 있습니다.</p>
+              <button id="btn-unlock-go-menu" class="btn btn-primary">첫 술 주문하러 가기</button>
+            </div>
+          </div>
+
+          <!-- Active Chat Layout -->
+          <div class="chat-container">
+            <!-- Left: Table Chat List -->
+            <div class="chat-threads-sidebar">
+              <!-- Thread nodes populated via JS -->
+            </div>
+
+            <!-- Right: Chat Box -->
+            <div class="chat-window">
+              <div id="chat-window-header" class="chat-window-header">
+                <span class="active-chat-table">귓속말 상대 없음</span>
+                <span class="active-chat-status"></span>
+              </div>
+              
+              <div id="chat-messages-area" class="chat-messages-area">
+                <!-- Messages populated via JS -->
+                <div class="chat-placeholder">
+                  좌측 목록 또는 바 배치도에서 테이블을 선택하여 귓속말을 시작하세요.
+                </div>
+              </div>
+
+              <div class="chat-input-bar">
+                <input type="text" id="chat-input" placeholder="매너 있는 귓속말을 작성하세요..." disabled>
+                <button id="btn-chat-send" class="btn-chat-send" disabled>전송</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+
+      <!-- Bottom Nav Tabs -->
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-tab="bar">
+          <span class="nav-icon">🏷️</span>
+          <span class="nav-label">U-바 좌석</span>
+        </button>
+        <button class="nav-item" data-tab="menu">
+          <span class="nav-icon">🍾</span>
+          <span class="nav-label">주문/FLEX</span>
+        </button>
+        <button class="nav-item" data-tab="chat">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">귓속말</span>
+        </button>
+      </nav>
+      
+    </div>
+
+    <!-- ==================== FULL SCREEN ANIMATION: CHEERS TOAST ==================== -->
+    <div id="cheers-animation-overlay" class="cheers-animation-overlay">
+      <div class="cheers-box">
+        <div class="cheers-cup-effect">🥂✨</div>
+        <h2 class="cheers-title">FLEX CHEERS!</h2>
+        <p id="cheers-message" class="cheers-desc">5번 테이블에서 바텐더 민지에게 칵테일을 선물했습니다!</p>
+        <div class="sparkles-container">
+          <span class="sparkle">🌟</span>
+          <span class="sparkle">✨</span>
+          <span class="sparkle">🔥</span>
+          <span class="sparkle">🍾</span>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
