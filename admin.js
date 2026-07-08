@@ -1,15 +1,13 @@
-// ==================== DOKJU POS ADMIN LOGIC ====================
+// ==================== DOKJU POS ADMIN LOGIC (MQTT) ====================
 
-const firebaseConfig = {
-  databaseURL: "https://dokju-bar-default-rtdb.firebaseio.com"
-};
+const MQTT_URL = 'wss://broker.hivemq.com:8884/mqtt';
+const TOPIC   = 'dokju/bar/banana/v3';
+let mqttClient = null;
+let mqttId = 'admin_' + Math.random().toString(16).slice(2, 10);
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-let activeOrdersList = {};
-let previousPendingCount = 0;
+let activeOrders = {}; // orderId -> order detail { table, nickname, items, total, time, status }
+let pendingOrdersCount = 0;
+let totalSalesAccumulated = 2230000; // Seed default sales for realistic demo
 
 // Base mock seating for alignment matching customer UI
 const mockSeating = {
@@ -20,35 +18,87 @@ const mockSeating = {
   8: { gender: 'male', age: 36, mood: 'talk', nickname: '성민' }
 };
 
-// ==================== INIT ====================
+const serverTables = {}; // Live MQTT presence metadata
+
+// ==================== BOOT ====================
 document.addEventListener('DOMContentLoaded', () => {
-  initFirebaseSync();
+  initMqttConnection();
+  document.getElementById('sales-today').textContent = totalSalesAccumulated.toLocaleString() + '원';
 });
 
-// ==================== FIREBASE SYNC ====================
-function initFirebaseSync() {
-  // 1. Sync active seats map
-  db.ref('tables').on('value', (snapshot) => {
-    const tables = snapshot.val() || {};
-    updateSeatingMap(tables);
+// ==================== SERVERLESS MQTT PRESENCE ====================
+function initMqttConnection() {
+  mqttClient = mqtt.connect(MQTT_URL, { clientId: mqttId });
+
+  mqttClient.on('connect', () => {
+    console.log("Admin connected to HiveMQ Broker!");
+    
+    // Subscribe to seating maps, FLEX logs, whispers logs, and incoming orders requests
+    mqttClient.subscribe(`${TOPIC}/table/+`);
+    mqttClient.subscribe(`${TOPIC}/flex`);
+    mqttClient.subscribe(`${TOPIC}/orders/request`);
+    mqttClient.subscribe(`${TOPIC}/whisper/#`); // Wildcard to capture all table whispers
   });
 
-  // 2. Sync orders queue
-  db.ref('orders').on('value', (snapshot) => {
-    const orders = snapshot.val() || {};
-    activeOrdersList = orders;
-    processOrders(orders);
+  mqttClient.on('message', (topic, raw) => {
+    try {
+      const data = JSON.parse(raw.toString());
+      
+      // 1. Seating maps updates
+      if (topic.startsWith(`${TOPIC}/table/`)) {
+        const t = parseInt(topic.split('/').pop());
+        if (data.action === 'leave') {
+          delete serverTables[t];
+        } else {
+          serverTables[t] = data;
+        }
+        updateSeatingMap();
+      }
+      
+      // 2. Incoming Orders Requests from clients
+      else if (topic === `${TOPIC}/orders/request`) {
+        const orderId = data.orderId || 'ord_' + Date.now();
+        
+        // Prevent duplicate appending
+        if (!activeOrders[orderId]) {
+          activeOrders[orderId] = {
+            table: data.table,
+            nickname: data.nickname,
+            items: data.items,
+            total: data.total,
+            time: data.time,
+            status: 'pending'
+          };
+          renderOrdersQueue();
+          playPOSBell(); // Play synth POS sound alert
+        }
+      }
+      
+      // 3. FLEX order log broadcasts
+      else if (topic === `${TOPIC}/flex`) {
+        // Accumulate sales dynamically
+        totalSalesAccumulated += data.amount;
+        document.getElementById('sales-today').textContent = totalSalesAccumulated.toLocaleString() + '원';
+      }
+      
+      // 4. Wildcard whispers monitoring log
+      else if (topic.includes('/whisper/')) {
+        const toTable = topic.split('/').pop();
+        appendWhisperLog(data.from, toTable, data.text, data.time);
+      }
+    } catch (e) {
+      console.error("Admin MQTT parsing error:", e);
+    }
   });
 
-  // 3. Monitor live chats logs globally
-  db.ref('chats').on('value', (snapshot) => {
-    const chats = snapshot.val() || {};
-    processChatMonitoring(chats);
+  mqttClient.on('close', () => {
+    console.log("Admin disconnected. Retrying...");
+    setTimeout(initMqttConnection, 4000);
   });
 }
 
 // ==================== SEATING MONITOR ====================
-function updateSeatingMap(serverTables) {
+function updateSeatingMap() {
   const merged = { ...mockSeating, ...serverTables };
   let count = 0;
 
@@ -77,62 +127,51 @@ function updateSeatingMap(serverTables) {
 }
 
 // ==================== ORDERS POS QUEUE ====================
-function processOrders(orders) {
+function renderOrdersQueue() {
   const queue = document.getElementById('orders-queue');
   const badge = document.getElementById('orders-badge');
   
-  // Clear layout
   queue.innerHTML = '';
+  let count = 0;
 
-  let pendingCount = 0;
-  let totalSales = 0;
+  // Filter pending items
+  const orderKeys = Object.keys(activeOrders).filter(id => activeOrders[id].status === 'pending');
+  badge.textContent = orderKeys.length;
 
-  // Sort orders descending by timestamp
-  const sortedKeys = Object.keys(orders).sort((a, b) => orders[b].timestamp - orders[a].timestamp);
+  orderKeys.forEach(id => {
+    count++;
+    const order = activeOrders[id];
+    
+    const card = document.createElement('div');
+    card.className = 'order-card';
 
-  sortedKeys.forEach(id => {
-    const order = orders[id];
-    totalSales += order.total; // Add to accumulated sales counter
+    const itemsHtml = order.items.map(item => `
+      <div class="order-card-item">
+        <span class="item-name">${item.name}</span>
+        <span class="item-price">${item.price.toLocaleString()}원</span>
+      </div>
+    `).join('');
 
-    if (order.status === 'pending') {
-      pendingCount++;
-      
-      const card = document.createElement('div');
-      card.className = 'order-card';
-      
-      // Build itemized listing HTML
-      const itemsHtml = order.items.map(item => `
-        <div class="order-card-item">
-          <span class="item-name">${item.icon} ${item.name}</span>
-          <span class="item-price">${item.price.toLocaleString()}원</span>
+    card.innerHTML = `
+      <div class="order-card-hdr">
+        <span class="order-card-table">${order.table}번 테이블 주문</span>
+        <span class="order-card-time">${order.time}</span>
+      </div>
+      <div class="order-card-items">
+        ${itemsHtml}
+      </div>
+      <div class="order-card-footer">
+        <div class="order-card-total">
+          합계: <strong>${order.total.toLocaleString()}원</strong>
         </div>
-      `).join('');
+        <button class="btn-serve" onclick="serveOrder('${id}', ${order.table})">✓ 서비스 완료</button>
+      </div>
+    `;
 
-      card.innerHTML = `
-        <div class="order-card-hdr">
-          <span class="order-card-table">${order.table}번 테이블 주문</span>
-          <span class="order-card-time">${order.time}</span>
-        </div>
-        <div class="order-card-items">
-          ${itemsHtml}
-        </div>
-        <div class="order-card-footer">
-          <div class="order-card-total">
-            합계: <strong>${order.total.toLocaleString()}원</strong>
-          </div>
-          <button class="btn-serve" onclick="completeOrder('${id}')">✓ 서비스 완료</button>
-        </div>
-      `;
-
-      queue.appendChild(card);
-    }
+    queue.appendChild(card);
   });
 
-  // Update Counters
-  badge.textContent = pendingCount;
-  document.getElementById('sales-today').textContent = totalSales.toLocaleString() + '원';
-
-  if (pendingCount === 0) {
+  if (count === 0) {
     queue.innerHTML = `
       <div class="orders-empty">
         <span class="empty-icon">☕</span>
@@ -140,69 +179,47 @@ function processOrders(orders) {
       </div>
     `;
   }
-
-  // Play Synth Sound notification on new pending order arrival
-  if (pendingCount > previousPendingCount) {
-    playPOSBell();
-  }
-  previousPendingCount = pendingCount;
 }
 
 // Complete order handler
-window.completeOrder = function(orderId) {
-  if (db) {
-    db.ref(`orders/${orderId}/status`).set('completed');
+window.serveOrder = function(orderId, tableNum) {
+  if (activeOrders[orderId]) {
+    activeOrders[orderId].status = 'completed';
+    renderOrdersQueue();
+
+    // Publish serve completion notification to release chat locks on client side
+    if (mqttClient && mqttClient.connected) {
+      mqttClient.publish(`${TOPIC}/orders/serve/${tableNum}`, JSON.stringify({
+        status: 'completed'
+      }), { qos: 1 });
+    }
   }
 };
 
 // ==================== LIVE CHAT MONITOR ====================
-function processChatMonitoring(rooms) {
+let whisperLogs = [];
+
+function appendWhisperLog(fromTable, toTable, text, time) {
   const container = document.getElementById('monitor-logs');
-  container.innerHTML = '';
-
-  let allMessages = [];
-
-  // Parse rooms and gather messages
-  Object.keys(rooms).forEach(roomId => {
-    const room = rooms[roomId];
-    if (!room) return;
-
-    Object.keys(room).forEach(msgId => {
-      const msg = room[msgId];
-      if (msg) {
-        // Parse tables from roomId (e.g. 3_6)
-        const tables = roomId.split('_');
-        const t1 = parseInt(tables[0]);
-        const t2 = parseInt(tables[1]);
-
-        allMessages.push({
-          room: `${t1}번 ↔ ${t2}번`,
-          from: msg.senderTable,
-          text: msg.text,
-          time: msg.time,
-          timestamp: msg.timestamp || 0
-        });
-      }
-    });
+  
+  whisperLogs.unshift({
+    from: fromTable,
+    to: toTable,
+    text: text,
+    time: time
   });
 
-  // Sort messages by descending timestamp (newest first)
-  allMessages.sort((a, b) => b.timestamp - a.timestamp);
+  // Limit to last 20 logs
+  if (whisperLogs.length > 20) whisperLogs.pop();
 
-  // Take latest 15 messages
-  const latestLogs = allMessages.slice(0, 15);
-
-  if (latestLogs.length === 0) {
-    container.innerHTML = `<div class="monitor-empty">손님 간 실시간 귓속말 통신 내역이 여기에 표시됩니다.</div>`;
-    return;
-  }
-
-  latestLogs.forEach(log => {
+  container.innerHTML = '';
+  
+  whisperLogs.forEach(log => {
     const div = document.createElement('div');
     div.className = 'monitor-entry';
     div.innerHTML = `
       <div class="monitor-entry-hdr">
-        <span>[${log.room}]</span>
+        <span>[${log.from}번 ↔ ${log.to}번]</span>
         <span>Table ${log.from} 발송</span>
       </div>
       <div class="monitor-entry-body">"${log.text}"</div>
@@ -213,7 +230,6 @@ function processChatMonitoring(rooms) {
 }
 
 // ==================== SOUND SYNTHESIZER ====================
-// Web Audio API Synthesizer (Zero-audio asset dependency POS bell ring)
 function playPOSBell() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;

@@ -1,27 +1,19 @@
-// ==================== APP STATE & FIREBASE SYNC ====================
+// ==================== APP STATE & SERVERLESS MQTT ====================
 const CURRENT_YEAR = 2026;
-
-// Firebase configuration using a public demo database. Replace with your own project config!
-const firebaseConfig = {
-  databaseURL: "https://dokju-bar-default-rtdb.firebaseio.com"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-let currentChatRef = null; // Reference to the active Firebase chat room listener
-let clientUniqueId = 'dokju_cl_' + Math.random().toString(16).substring(2, 10);
+const MQTT_URL = 'wss://broker.hivemq.com:8884/mqtt';
+const TOPIC   = 'dokju/bar/banana/v3';
+let mqttClient = null;
+let mqttId = 'dkj_' + Math.random().toString(16).slice(2, 10);
 
 const state = {
   mode: 'guest',   // 'guest' | 'member'
   user: null,      // { nickname, gender, age, table, mood, joinDate }
-  ordered: false,  // Unlocks chat features
+  ordered: false,  // Unlocks chat features after first order is served
   cart: [],
-  chats: {},       // tableNum -> [{senderTable, text, time, timestamp}]
+  chats: {},       // tableNum -> [{senderTable, text, time}]
   activeChatTable: null,
   activeTab: 'bar',
-  serverTables: {}, // Live Firebase occupancy states
+  serverTables: {}, // Live MQTT occupancy states
   tickerLogs: [
     { table: 3, item: 'Dom Pérignon', amount: 1200000 },
     { table: 8, item: 'Macallan 18y', amount: 850000 },
@@ -29,7 +21,7 @@ const state = {
   ]
 };
 
-// Base mock tables to display a busy bar unless overridden by real users
+// Base mock seating shown when no real user is in that seat
 const mockSeating = {
   1: { gender: 'male', age: 34, mood: 'talk', nickname: '정우' },
   2: { gender: 'female', age: 26, mood: 'solo', nickname: '민지' },
@@ -120,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.ordered = LS.loadOrders().length > 0;
     applyMemberSession();
     showScreen('main');
-    initFirebaseSync();
+    initMqtt();
   }
 });
 
@@ -216,7 +208,7 @@ function enterGuestMode() {
   updateHeaderForGuest();
   showScreen('main');
   renderFlex();
-  initFirebaseSync(); // Read-only presence listeners
+  initMqtt(); // Read-only presence listeners
 }
 
 function updateHeaderForGuest() {
@@ -254,7 +246,7 @@ function handleAuthSubmit(e) {
 
   applyMemberSession();
   showScreen('main');
-  initFirebaseSync();
+  initMqtt();
 }
 
 function showBlocked(reason) {
@@ -284,9 +276,11 @@ function applyMemberSession() {
 function handleLogout() {
   if (!confirm('로그아웃 하시겠어요?')) return;
 
-  // Remove presence node from database
-  if (state.user && db) {
-    db.ref(`tables/${state.user.table}`).remove();
+  // Publish leave presence node to broker
+  if (state.user && mqttClient && mqttClient.connected) {
+    mqttClient.publish(`${TOPIC}/table/${state.user.table}`, JSON.stringify({ action: 'leave' }), { qos: 1, retain: true });
+    mqttClient.end();
+    mqttClient = null;
   }
 
   LS.clearUser();
@@ -300,11 +294,6 @@ function handleLogout() {
   state.activeChatTable = null;
   state.serverTables = {};
 
-  if (currentChatRef) {
-    currentChatRef.off();
-    currentChatRef = null;
-  }
-
   showScreen('gate');
 }
 
@@ -316,9 +305,7 @@ function setMood(mood) {
   setMoodUI(mood);
   
   // Publish updated presence
-  if (state.mode === 'member') {
-    db.ref(`tables/${state.user.table}/mood`).set(mood);
-  }
+  publishPresence('mood_update');
 }
 
 function setMoodUI(mood) {
@@ -326,46 +313,93 @@ function setMoodUI(mood) {
   $('mood-btn-talk').classList.toggle('active', mood === 'talk');
 }
 
-// ==================== FIREBASE REALTIME SYNC ====================
-function initFirebaseSync() {
-  // 1. Listen for global seating presence
-  db.ref('tables').on('value', (snapshot) => {
-    const tables = snapshot.val() || {};
-    state.serverTables = {};
-    Object.keys(tables).forEach(t => {
-      const tableNum = parseInt(t);
-      if (!state.user || tableNum !== state.user.table) {
-        state.serverTables[tableNum] = tables[t];
-      }
-    });
-    refreshSeatMap();
+// ==================== SERVERLESS MQTT PRESENCE ====================
+function initMqtt() {
+  const table = state.user?.table;
+  const lwt = table ? {
+    topic: `${TOPIC}/table/${table}`,
+    payload: JSON.stringify({ action: 'leave' }),
+    qos: 1,
+    retain: true
+  } : undefined;
+
+  // Establish connection to public secure HiveMQ WebSocket Broker
+  mqttClient = mqtt.connect(MQTT_URL, { clientId: mqttId, will: lwt });
+
+  mqttClient.on('connect', () => {
+    // Subscribe to seating maps, flex broadcasts, whispers, and served alerts
+    mqttClient.subscribe(`${TOPIC}/table/+`);
+    mqttClient.subscribe(`${TOPIC}/flex`);
+    if (table) {
+      mqttClient.subscribe(`${TOPIC}/whisper/${table}`);
+      mqttClient.subscribe(`${TOPIC}/orders/serve/${table}`);
+    }
+    if (state.mode === 'member') publishPresence('join');
   });
 
-  // 2. Listen for real-time global FLEX order ticker
-  db.ref('flex_logs').limitToLast(5).on('child_added', (snapshot) => {
-    const log = snapshot.val();
-    if (log) {
-      addTickerLog(log.table, log.item, log.amount);
+  mqttClient.on('message', (topic, raw) => {
+    try {
+      const data = JSON.parse(raw.toString());
+      
+      // Seating presence triggers
+      if (topic.startsWith(`${TOPIC}/table/`)) {
+        const t = parseInt(topic.split('/').pop());
+        if (data.action === 'leave') {
+          delete state.serverTables[t];
+        } else {
+          if (!state.user || t !== state.user.table) {
+            state.serverTables[t] = data;
+          }
+        }
+        refreshSeatMap();
+      }
+      
+      // Real-time served orders notifier from POS
+      else if (topic === `${TOPIC}/orders/serve/${state.user?.table}`) {
+        if (data.status === 'completed') {
+          state.ordered = true;
+          // Unlocks chat locks and prompts user
+          alert('주문하신 품목이 서비스 완료되었습니다!\n귓속말 기능이 잠금해제 되었습니다.');
+          
+          // Inject a dummy order record locally if they didn't have one to keep state
+          const orders = LS.loadOrders();
+          if (orders.length === 0) {
+            LS.addOrder({ id: Date.now(), name: '기본 입장권', icon: '🎟️', price: 0, date: new Date().toLocaleDateString('ko-KR'), time: new Date().toLocaleTimeString('ko-KR') });
+          }
+          renderOrderHistory();
+          switchTab('chat');
+        }
+      }
+      
+      // Whispers routing
+      else if (topic === `${TOPIC}/whisper/${state.user?.table}`) {
+        onWhisperIn(data.from, data.text, data.time);
+      }
+      
+      // FLEX banners rolling updates
+      else if (topic === `${TOPIC}/flex`) {
+        if (!state.user || data.table !== state.user.table) {
+          addTickerLog(data.table, data.item, data.amount);
+        }
+      }
+    } catch {}
+  });
+
+  mqttClient.on('close', () => {
+    if (state.user) {
+      setTimeout(initMqtt, 4000);
     }
   });
+}
 
-  // 3. Register self as active seat (Member only)
-  if (state.mode === 'member' && state.user) {
-    const u = state.user;
-    const tableRef = db.ref(`tables/${u.table}`);
-    
-    tableRef.set({
-      nickname: u.nickname,
-      gender: u.gender,
-      age: u.age,
-      mood: u.mood,
-      clientId: clientUniqueId,
-      updatedAt: firebase.database.ServerValue.TIMESTAMP
-    });
-
-    // Cleanup seat on exit/refresh/disconnect
-    tableRef.onDisconnect().remove();
-  }
+function publishPresence(action) {
+  if (!mqttClient?.connected || !state.user) return;
+  const u = state.user;
+  mqttClient.publish(
+    `${TOPIC}/table/${u.table}`,
+    JSON.stringify({ action, gender: u.gender, age: u.age, mood: u.mood, clientId: mqttId }),
+    { qos: 1, retain: true }
+  );
 }
 
 // ==================== SEAT MAP ====================
@@ -407,9 +441,7 @@ function handleSeatClick(tableNum) {
   }
   
   if (state.mode === 'guest') {
-    // Guest can watch chats, let them pass to Chat Tab directly
-    startChat(tableNum);
-    return;
+    startChat(tableNum); return;
   }
   
   if (!state.ordered) {
@@ -440,10 +472,6 @@ function renderFlex() {
 }
 
 function addTickerLog(table, item, amount) {
-  // Prevent duplicate insertion
-  const duplicate = state.tickerLogs.some(log => log.table === table && log.item === item && log.amount === amount);
-  if (duplicate) return;
-
   state.tickerLogs.unshift({ table, item, amount: Number(amount) });
   if (state.tickerLogs.length > 8) state.tickerLogs.pop();
   renderFlex();
@@ -476,7 +504,7 @@ function renderMenu(cat) {
     container.appendChild(row);
   });
 
-  // Bind cart adding hooks
+  // Bind add buttons
   container.querySelectorAll('.btn-add').forEach(btn => {
     btn.addEventListener('click', () => toggleCart(btn.dataset.pid));
   });
@@ -504,43 +532,44 @@ function updateCartUI() {
 
 function handleCheckout() {
   if (state.cart.length === 0) { alert('담긴 메뉴가 없습니다.'); return; }
-  if (state.mode === 'guest') { alert('관람 모드에서는 결제할 수 없습니다. 로그인해 주세요.'); return; }
+  if (state.mode === 'guest') { alert('관람 모드에서는 결제할 수 없습니다.'); return; }
 
   const total = state.cart.reduce((s, i) => s + i.price, 0);
   alert(`카드 결제 승인\n합계: ${total.toLocaleString()}원`);
-
-  state.ordered = true;
 
   const now = new Date();
   const date = now.toLocaleDateString('ko-KR');
   const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-  // 1. Submit central Order to Firebase Database
-  const orderRef = db.ref('orders').push();
-  orderRef.set({
-    table: state.user.table,
-    nickname: state.user.nickname,
-    items: state.cart.map(i => ({ name: i.name, price: i.price, icon: i.icon, cat: i.cat })),
-    total: total,
-    status: 'pending',
-    timestamp: firebase.database.ServerValue.TIMESTAMP,
-    date: date,
-    time: time
-  });
-
   const hasTip = state.cart.find(i => i.cat === 'tips');
 
+  // Generate a random order ID
+  const orderId = 'order_' + Math.random().toString(16).slice(2, 8);
+
+  // 1. Publish Order Request packet to admin queue
+  if (mqttClient?.connected) {
+    mqttClient.publish(`${TOPIC}/orders/request`, JSON.stringify({
+      orderId: orderId,
+      table: state.user.table,
+      nickname: state.user.nickname,
+      items: state.cart.map(i => ({ name: i.name, price: i.price, icon: i.icon })),
+      total: total,
+      time: time
+    }), { qos: 1 });
+  }
+
   state.cart.forEach(item => {
-    // 2. Save locally for order persistence
+    // 2. Save locally for user history
     LS.addOrder({ id: Date.now() + Math.random(), name: item.name, icon: item.icon, price: item.price, date, time });
 
-    // 3. Broadcast high values/cheers to Firebase logs
-    db.ref('flex_logs').push().set({
-      table: state.user.table,
-      item: item.name,
-      amount: item.price,
-      timestamp: firebase.database.ServerValue.TIMESTAMP
-    });
+    // 3. Broadcast to FLEX log topic
+    if (mqttClient?.connected) {
+      mqttClient.publish(`${TOPIC}/flex`, JSON.stringify({
+        table: state.user.table,
+        item: item.name,
+        amount: item.price
+      }), { qos: 1 });
+    }
 
     // Add to local ticker immediately
     if (item.price >= 10000) {
@@ -549,7 +578,7 @@ function handleCheckout() {
   });
 
   if (hasTip) showCheers(hasTip);
-  else alert('주문 완료! 이제 귓속말 기능이 활성화됩니다.');
+  else alert('주문이 접수되었습니다! 사장님이 포스기(admin.html)에서 확인/완료 하시면 귓속말 기능이 해제됩니다.');
 
   state.cart = [];
   updateCartUI();
@@ -558,7 +587,6 @@ function handleCheckout() {
   if (activeCat) renderMenu(activeCat.dataset.category);
   
   renderOrderHistory();
-  switchTab('chat');
 }
 
 // ==================== ORDER HISTORY ====================
@@ -607,7 +635,7 @@ function renderOrderHistory() {
   totalBar.classList.remove('hidden');
 }
 
-// ==================== CHAT SERVICES ====================
+// ==================== CHAT ====================
 function showSendGate() {
   $('chat-send-gate').classList.remove('hidden');
 }
@@ -621,38 +649,16 @@ function hidePayLock() {
   $('chat-lock-overlay').classList.add('hidden');
 }
 
-function getRoomId(t1, t2) {
-  return t1 < t2 ? `${t1}_${t2}` : `${t2}_${t1}`;
-}
-
 function startChat(tableNum) {
   state.activeChatTable = tableNum;
+  if (!state.chats[tableNum]) {
+    state.chats[tableNum] = [];
+  }
   switchTab('chat');
   hidePayLock();
   hideSendGate();
   renderChatSidebar();
-  
-  // Unbind previous listener if exists
-  if (currentChatRef) {
-    currentChatRef.off();
-  }
-
-  // Subscribe to Central Firebase Chat Room for real-time whispers
-  const selfTable = state.user ? state.user.table : 99; // 99 indicates guest viewer room
-  const roomId = getRoomId(selfTable, tableNum);
-  currentChatRef = db.ref(`chats/${roomId}`);
-  
-  currentChatRef.on('value', (snapshot) => {
-    const messages = snapshot.val() || {};
-    // Sort items by ascending order of creation timestamp
-    const list = Object.values(messages).sort((a, b) => a.timestamp - b.timestamp);
-    state.chats[tableNum] = list;
-    LS.saveChats(state.chats);
-    
-    if (state.activeChatTable === tableNum && state.activeTab === 'chat') {
-      renderChatWindow(tableNum);
-    }
-  });
+  renderChatWindow(tableNum);
 }
 
 function renderChatSidebar() {
@@ -665,7 +671,6 @@ function renderChatSidebar() {
     const card = document.querySelector(`.seat-card[data-table="${t}"]`);
     const icon = card?.querySelector('.seat-av')?.textContent || '👤';
     const msgs = state.chats[t] || [];
-    
     const hasUnread = msgs.length > 0 && msgs[msgs.length - 1].senderTable !== state.user?.table && msgs[msgs.length - 1].isUnread;
 
     const node = document.createElement('div');
@@ -689,7 +694,6 @@ function renderChatWindow(tableNum) {
   const area = $('chat-msgs');
   area.innerHTML = '';
 
-  // Display Guest read-only banner inside window
   if (state.mode === 'guest') {
     const tag = document.createElement('div');
     tag.className = 'guest-read-tag';
@@ -719,9 +723,10 @@ function renderChatWindow(tableNum) {
     thread.forEach(m => {
       if (m.senderTable !== state.user.table) m.isUnread = false;
     });
+    LS.saveChats(state.chats);
   }
 
-  // Manage Input elements states
+  // Manage Input element disabled states
   const inputEl = $('chat-input');
   const sendBtn = $('btn-chat-send');
   
@@ -751,21 +756,24 @@ function sendMessage() {
   const t = state.activeChatTable;
   const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-  // 1. Submit message node to Central Firebase Chat Room
-  const roomId = getRoomId(state.user.table, t);
-  const chatRef = db.ref(`chats/${roomId}`).push();
-  
-  chatRef.set({
-    senderTable: state.user.table,
-    text: text,
-    time: time,
-    isUnread: true,
-    timestamp: firebase.database.ServerValue.TIMESTAMP
-  });
-
+  if (!state.chats[t]) state.chats[t] = [];
+  state.chats[t].push({ senderTable: state.user.table, text, time, isUnread: false });
   input.value = '';
 
-  // 2. Chatbot fallback triggers if target seat is a static mock offline table
+  LS.saveChats(state.chats);
+  renderChatWindow(t);
+  renderChatSidebar();
+
+  // 1. Transmit whisper message over secure MQTT topic
+  if (mqttClient?.connected) {
+    mqttClient.publish(`${TOPIC}/whisper/${t}`, JSON.stringify({
+      from: state.user.table,
+      text: text,
+      time: time
+    }), { qos: 1 });
+  }
+
+  // 2. Chatbot response fallback triggers if target seat is a static mock offline table
   const hasRealPlayer = !!state.serverTables[t];
   if (!hasRealPlayer) {
     setTimeout(() => fallbackBot(t), 2200);
@@ -773,9 +781,19 @@ function sendMessage() {
 }
 
 function onWhisperIn(fromTable, text, time) {
-  // Real whisper is received in real-time. Since we listen to /chats/{room_id},
-  // the callback handles it. We just play an alert or trigger visual updates if in other tab.
-  if (state.activeChatTable !== fromTable || state.activeTab !== 'chat') {
+  if (!state.chats[fromTable]) state.chats[fromTable] = [];
+  
+  // Guard: Avoid double appending if it is somehow echoed
+  const thread = state.chats[fromTable];
+  const duplicate = thread.length > 0 && thread[thread.length - 1].senderTable === fromTable && thread[thread.length - 1].text === text;
+  if (duplicate) return;
+
+  state.chats[fromTable].push({ senderTable: fromTable, text, time, isUnread: true });
+  LS.saveChats(state.chats);
+
+  if (state.activeChatTable === fromTable && state.activeTab === 'chat') {
+    renderChatWindow(fromTable);
+  } else {
     renderChatSidebar();
     $('chat-nav-dot').classList.remove('hidden');
   }
@@ -792,15 +810,14 @@ function fallbackBot(tableNum) {
     ? '조용히 혼술 중이에요 🤫 나중에 인사해요~'
     : ['안녕하세요! 반갑습니다 😊', '짠! 🥂', '저도 혼술이에요 ㅎㅎ 술 뭐 드시나요?', '와 귓속말이 오다니! 신기하네요 ㅋㅋ'][Math.floor(Math.random() * 4)];
 
-  // Inject bot reply directly to the firebase chat room
-  const roomId = getRoomId(state.user.table, tableNum);
-  db.ref(`chats/${roomId}`).push().set({
-    senderTable: tableNum,
-    text: text,
-    time: time,
-    isUnread: true,
-    timestamp: firebase.database.ServerValue.TIMESTAMP
-  });
+  state.chats[tableNum].push({ senderTable: tableNum, text, time, isUnread: true });
+  LS.saveChats(state.chats);
+
+  if (state.activeChatTable === tableNum && state.activeTab === 'chat') {
+    renderChatWindow(tableNum);
+  } else {
+    renderChatSidebar();
+  }
 }
 
 // ==================== TAB SWITCHING ====================
