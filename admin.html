@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOKJU — 사장님 실시간 포스 대시보드</title>
+  <!-- Google Fonts: Outfit & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<div class="admin-container">
+  
+  <!-- ══════════════════════════════════════════
+       HEADER SECTION
+  ══════════════════════════════════════════ -->
+  <header class="admin-header">
+    <div class="header-logo-wrap">
+      <span class="header-logo">DOKJU ADMIN</span>
+      <span class="header-status-dot"></span>
+      <span class="header-status-lbl">실시간 서버 연결됨</span>
+    </div>
+    
+    <div class="header-summary">
+      <div class="summary-card">
+        <span class="summary-lbl">오늘의 매출액</span>
+        <strong id="sales-today">0원</strong>
+      </div>
+      <div class="summary-card">
+        <span class="summary-lbl">현재 이용 중인 좌석</span>
+        <strong id="active-seats">0 / 8</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       MAIN CONTENT COLUMNS
+  ══════════════════════════════════════════ -->
+  <main class="admin-main">
+
+    <!-- Column 1: Active Pending Orders -->
+    <section class="admin-col col-orders">
+      <div class="col-hdr">
+        <h2>🔔 실시간 주문 접수 대기열 <span id="orders-badge" class="badge">0</span></h2>
+        <p>음료 및 바텐더 Cheers 팁 주문을 실시간 접수합니다</p>
+      </div>
+
+      <div id="orders-queue" class="orders-queue">
+        <!-- Dynamic Order Cards populated via JS -->
+        <div class="orders-empty">
+          <span class="empty-icon">☕</span>
+          <p>대기 중인 새로운 주문이 없습니다</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Column 2: Seating & Details -->
+    <section class="admin-col col-seating">
+      <div class="col-hdr">
+        <h2>🏮 실시간 U자형 바 좌석 현황</h2>
+        <p>매장 테이블 점유 상태 및 손님 연령/무드 실시간 동기화</p>
+      </div>
+
+      <div class="bar-map-box">
+        <div class="ubar-visual">
+          <!-- Left Wing -->
+          <div class="ubar-col ubar-col-left">
+            <div class="seat-card empty" data-table="1">
+              <span class="seat-n">1</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+            <div class="seat-card empty" data-table="2">
+              <span class="seat-n">2</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+            <div class="seat-card empty" data-table="3">
+              <span class="seat-n">3</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+          </div>
+
+          <!-- Counter Center -->
+          <div class="ubar-center">
+            <div class="bar-counter">
+              <div class="bartender-icon">🍸</div>
+              <div class="bartender-name">바텐더 (대화대기)</div>
+            </div>
+          </div>
+
+          <!-- Right Wing -->
+          <div class="ubar-col ubar-col-right">
+            <div class="seat-card empty" data-table="6">
+              <span class="seat-n">6</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+            <div class="seat-card empty" data-table="7">
+              <span class="seat-n">7</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+            <div class="seat-card empty" data-table="8">
+              <span class="seat-n">8</span>
+              <span class="seat-av">＋</span>
+              <span class="seat-name">빈자리</span>
+              <span class="seat-meta">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Chat Monitoring -->
+      <div class="live-monitor-card">
+        <div class="monitor-hdr">
+          <h3>💬 매장 귓속말 실시간 모니터링</h3>
+          <span class="monitor-status">실시간 로그</span>
+        </div>
+        <div id="monitor-logs" class="monitor-logs">
+          <div class="monitor-empty">손님 간 실시간 귓속말 통신 내역이 여기에 표시됩니다.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<!-- Firebase Library Compatibility CDNs -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
