@@ -138,6 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
     applyMemberSession();
     showScreen('main');
     initFirebaseSync();
+    if (state.ordered) {
+      startProactiveChatTimer();
+    }
   }
 });
 
@@ -416,6 +419,7 @@ function initFirebaseSync() {
         if (state.activeTab === 'chat') {
           renderChatListView();
         }
+        startProactiveChatTimer();
       }
     });
 
@@ -433,6 +437,7 @@ function initFirebaseSync() {
         }
         renderOrderHistory();
         switchTab('chat');
+        startProactiveChatTimer();
       }
     });
 
@@ -1115,6 +1120,75 @@ function fallbackBot(tableNum) {
   db.ref(`whisper_inboxes/${state.user.table}`).push().set({
     from: tableNum,
     text: replyText,
+    time: time,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
+}
+
+let proactiveChatInterval = null;
+
+function startProactiveChatTimer() {
+  if (proactiveChatInterval) clearInterval(proactiveChatInterval);
+  
+  proactiveChatInterval = setInterval(() => {
+    if (state.mode !== 'member' || !state.user || !state.ordered) return;
+    
+    // 25% chance every 40 seconds to trigger proactive hello
+    if (Math.random() > 0.25) return;
+    
+    const tableList = [1, 2, 3, 6, 8].filter(t => t !== state.user.table);
+    if (tableList.length === 0) return;
+    
+    const targetTable = tableList[Math.floor(Math.random() * tableList.length)];
+    
+    // Only send openers if we have never chatted with them yet, keeping it realistic
+    const thread = state.chats[targetTable] || [];
+    if (thread.length > 0) return;
+    
+    sendProactiveOpener(targetTable);
+  }, 40000);
+}
+
+function sendProactiveOpener(tableNum) {
+  const openers = {
+    1: [
+      "안녕하세요~ 혼자 오셨나 봐요? 반갑습니다 ㅎㅎ",
+      "오늘 주말이라 그런지 분위기 참 좋네요. 1번 테이블 정우라고 합니다!"
+    ],
+    2: [
+      "저기... 실례가 안 된다면 혹시 오늘 어떤 술 드시는지 여쭤봐도 될까요? ㅎㅎ",
+      "안녕하세요! 2번 테이블인데 멀리서 뵙고 조심스럽게 인사 건네봐요..."
+    ],
+    3: [
+      "오 반갑습니다! 혹시 하이볼 좋아하시나요? ㅋㅋㅋ",
+      "오 3번 테이블 도현이라고 합니다! 오늘 다 같이 즐겁게 마셔봐요 ㅋㅋㅋ"
+    ],
+    6: [
+      "안녕하세요!! 6번 테이블 지수예요 ㅎㅎ 반가워요!",
+      "오늘 혹시 위스키 드시나요? 짠 한잔하고 싶어서 귓속말 남겨봐요! 😊"
+    ],
+    8: [
+      "안녕하세요. 8번 테이블에 앉아있는 성민입니다. 반갑습니다.",
+      "조용히 위스키 한잔하다가 분위기가 좋아서 인사 건넵니다. 좋은 시간 보내고 계신지요."
+    ]
+  };
+
+  const list = openers[tableNum] || ["안녕하세요! 반갑습니다 ㅎㅎ"];
+  const text = list[Math.floor(Math.random() * list.length)];
+  const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  
+  const roomId = getRoomId(state.user.table, tableNum);
+  db.ref(`chats/${roomId}`).push().set({
+    senderTable: tableNum,
+    text: text,
+    time: time,
+    isUnread: true,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
+
+  db.ref(`whisper_inboxes/${state.user.table}`).push().set({
+    from: tableNum,
+    text: text,
     time: time,
     timestamp: firebase.database.ServerValue.TIMESTAMP
   });
