@@ -55,10 +55,17 @@ const PRODUCTS = [
   { id: 'b2', cat: 'bottle', name: '맥캘란 18년 (Macallan 18y)', price: 850000, desc: '싱글몰트의 명작. 깊은 오크향과 스파이스.', icon: '🥃', tag: 'best' },
   { id: 'b3', cat: 'bottle', name: '발베니 12년 (Balvenie 12y)', price: 280000, desc: '꿀향과 바닐라 힌트. 부드러운 입문 보틀.', icon: '🍷', tag: 'md' },
   
-  // Glasses
-  { id: 'g1', cat: 'glass', name: '글렌피딕 12년', price: 18000, desc: '상큼한 배 맛의 싱글몰트 잔술.', icon: '🥃', tag: null },
-  { id: 'g2', cat: 'glass', name: '제임슨 블랙 배럴', price: 14000, desc: '이중 탄화 공법의 아이리시 위스키.', icon: '🥃', tag: null },
-  { id: 'g3', cat: 'glass', name: '시그니처 진토닉', price: 12000, desc: '바텐더 메이드 청량 잔술.', icon: '🍹', tag: null },
+  // Glasses (잔술)
+  { id: 'g1', cat: 'glass', name: '글렌피딕 12년 (Glenfiddich 12y)', price: 18000, desc: '상큼한 청사과 향이 싱그러운 입문용 싱글몰트.', icon: '🥃', tag: null },
+  { id: 'g2', cat: 'glass', name: '발베니 12년 (Balvenie 12y)', price: 20000, desc: '꿀처럼 부드러운 단맛과 바닐라 오크 향.', icon: '🥃', tag: 'best' },
+  { id: 'g3', cat: 'glass', name: '맥캘란 12년 셰리 (Macallan 12y)', price: 22000, desc: '셰리 오크 캐스크의 깊은 건과일 향과 스파이스.', icon: '🥃', tag: 'best' },
+  { id: 'g4', cat: 'glass', name: '라가불린 16년 (Lagavulin 16y)', price: 28000, desc: '피트 위스키의 명작. 강렬한 스모키함과 긴 여운.', icon: '🥃', tag: 'flex' },
+  { id: 'g5', cat: 'glass', name: '제임슨 블랙 배럴 (Jameson BB)', price: 14000, desc: '이중 탄화 버번 오크통 숙성의 진하고 부드러운 맛.', icon: '🥃', tag: null },
+  { id: 'g6', cat: 'glass', name: '산토리 가쿠빈 하이볼', price: 12000, desc: '탄산수와 레몬 슬라이스를 더한 청량함의 정석.', icon: '🍹', tag: null },
+  { id: 'g7', cat: 'glass', name: '독주 바나나 시그니처 하이볼', price: 14000, desc: 'DOKJU만의 수제 바나나 시럽이 들어간 달콤 청량 하이볼.', icon: '🍹', tag: 'best' },
+  { id: 'g8', cat: 'glass', name: '클래식 마티니 (Martini)', price: 18000, desc: '칵테일의 왕. 올리브와 함께 즐기는 드라이한 한 잔.', icon: '🍸', tag: null },
+  { id: 'g9', cat: 'glass', name: '갓파더 (Godfather)', price: 17000, desc: '스카치 위스키와 아마레토의 묵직하고 달콤한 조화.', icon: '🥃', tag: null },
+  { id: 'g10', cat: 'glass', name: '기네스 드래프트 (Guinness)', price: 13000, desc: '질소 가스의 크리미한 거품이 살아있는 아일랜드 흑맥주.', icon: '🍺', tag: null },
 
   // Smart Corkage
   { id: 'c1', cat: 'corkage', name: '콜키지 기본 (1~2인)', price: 3000, desc: '외부 안주 반입 · 식기 세트 제공.', icon: '🍽️', tag: 'cork' },
