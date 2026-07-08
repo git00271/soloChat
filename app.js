@@ -975,22 +975,137 @@ function playWhisperChime() {
   } catch (e) {}
 }
 
+function getPersonaReply(tableNum, userMsg) {
+  const msg = userMsg.toLowerCase().replace(/\s+/g, '');
+  
+  const personas = {
+    1: { // 정우 (Male 34, talk - Macallan / Whisky)
+      name: "정우",
+      default: [
+        "안녕하세요~ 오늘 날씨 좋네요. 맛있는 위스키 추천받아 마시고 있어요 ㅎㅎ",
+        "반갑습니다! 오늘 혼술하러 오신 건가요? 🥂",
+        "아 ㅎㅎ 네! 반가워요. 오늘 다들 텐션 좋네요.",
+        "네 마침 대화하고 싶었는데 잘 됐네요! 무슨 술 드시고 계세요?"
+      ],
+      keywords: {
+        "안녕": ["안녕하세요! 반갑습니다 ㅎㅎ", "오 안녕하세요! 반가워요~"],
+        "술": ["저는 위스키 마시고 있어요. 글렌피딕이나 맥캘란 주로 마셔요!", "위스키 잔술로 마시고 있는데 향이 되게 좋네요."],
+        "추천": ["맥캘란 12년 셰리나 발베니 추천드려요! 입문하기 아주 무난해요.", "달달한 거 좋아하시면 바나나 하이볼도 맛있더라고요 ㅋㅋ"],
+        "짠": ["짠! 🥂 오늘 기분 좋게 취하겠네요.", "오 멀리서 잔 한번 들게요 짠! 🥃"],
+        "나이": ["아 저는 서른넷이에요! 편하게 말씀하세요 ㅎㅎ", "34살 아재입니다 ㅋㅋ 그쪽은요?"],
+        "이름": ["정우라고 합니다! 반갑습니다~", "이름은 정우예요! 편하게 불러주세요."],
+        "혼자": ["네 오늘 퇴근하고 조용히 혼자 한잔하러 왔어요 ㅎㅎ", "네 오늘은 혼술 감성이라 혼자 왔네요."],
+        "합석": ["아 ㅎㅎ 이따 기회 되면 잔 들고 갈게요!", "아직은 테이블에서 조금 더 마시다가요!"]
+      }
+    },
+    2: { // 민지 (Female 26, solo - Gin / Tonic)
+      name: "민지",
+      default: [
+        "네 안녕하세요... 오늘 조용히 생각 정리하러 왔어요 ㅎㅎ",
+        "반갑습니다. 저는 진토닉 가볍게 한잔 마시는 중이에요.",
+        "아 ㅎㅎ 넵... 조용히 마시는 편이라 귓속말 신기하네요.",
+        "오늘 여기 분위기 되게 몽환적이고 좋네요."
+      ],
+      keywords: {
+        "안녕": ["안녕하세요...!", "아 안녕하세요! 반갑습니다."],
+        "술": ["저는 시그니처 진토닉 마시고 있어요. 도수 낮고 상큼해서 좋네요.", "술은 세게 안 마시는 편이라 진토닉 마셔요~"],
+        "추천": ["가볍게 마시긴 진토닉이나 하이볼이 제일 무난한 거 같아요!", "도수 높은 거 좋아하시면 싱글몰트 글렌피딕 어떠세요?"],
+        "짠": ["앗 ㅎㅎ 짠! 🍹 좋은 시간 보내세요.", "네 짠! 잔 멀리서 들게요 ㅎㅎ"],
+        "나이": ["저는 26살이에요! ㅎㅎ", "스물여섯입니다. 그쪽은 몇 살이신가요?"],
+        "이름": ["민지라고 해요...!", "제 이름은 민지입니다. 반갑습니다."],
+        "혼자": ["네 조용히 혼술하러 왔어요. ㅎㅎ", "혼자 생각할 게 좀 있어서 왔네요."],
+        "합석": ["앗... 오늘은 조용히 혼자 마시고 싶어서요 죄송해요 ㅠㅠ", "이따가 잔 들고 지나갈 때 눈인사해요! ㅎㅎ"]
+      }
+    },
+    3: { // 도현 (Male 31, talk - Highball / Beer)
+      name: "도현",
+      default: [
+        "오 대박 ㅋㅋㅋ 안녕하세요! 하이볼 꿀맛이네요.",
+        "반가워요! 3번 테이블 도현입니다. 오늘 안주 뭐 시키셨어요?",
+        "ㅋㅋㅋ 여기 노래 맛집이네요. 선곡 너무 맘에 듭니다.",
+        "오늘 불금/불토 텐션 지대로네요 ㅋㅋㅋ 반갑습니다!"
+      ],
+      keywords: {
+        "안녕": ["오오 안녕하세요! 반갑습니다 ㅋㅋㅋ", "안녕하세여! 반갑습니당~"],
+        "술": ["전 하이볼 한잔 때리고 있습니다 🍹 시원하고 조음요", "위스키 마실까 하다가 하이볼 마셔요 ㅋㅋㅋ"],
+        "추천": ["산토리 하이볼 시원하니 직방입니다 👍", "아니면 기네스 흑맥주 크리미하고 맛나요!"],
+        "짠": ["짠짠!! 🥂 오늘 달려봐요~", "오 멀리서 눈 마주치면 짠해요 ㅋㅋㅋ 🍷"],
+        "나이": ["저는 31살입니다! 딱 위스키 맛 알아갈 나이죠 ㅋㅋㅋ", "서른하나입니다! 친구인가요?"],
+        "이름": ["이도현입니다! 도현이라고 불러주세요 ㅋㅋㅋ", "도현이요! 반가워요~"],
+        "혼자": ["네 친구랑 오려다가 파토나서 혼자 마시는 중이에요 ㅠㅠ", "혼자 왔는데 귓속말 오니까 심심하진 않네요 ㅋㅋㅋ"],
+        "합석": ["오 이따 바텐더님 허락받고 잔 들고 갈게요! ㅋㅋㅋ", "좋죠! 이따 눈 마주치면 짠하고 합석해여!"]
+      }
+    },
+    6: { // 지수 (Female 29, talk - Wine / Balvenie)
+      name: "지수",
+      default: [
+        "우와! 안녕하세요 ㅋㅋㅋ 귓속말 반가워요!",
+        "오늘 퇴근길에 너무 스트레스 받아서 위스키 수액 맞으러 왔어요 ㅠㅠ",
+        "여기 바텐더분들도 넘 친절하고 분위기 짱짱이네요.",
+        "반가워요! 오늘 주종은 뭐로 달리시나요? ㅎㅎ"
+      ],
+      keywords: {
+        "안녕": ["앗 안녕하세요! 넘넘 반가워요~ 😊", "안녕하세요! 6번 테이블 지수입니당!"],
+        "술": ["저는 발베니 12년 마시고 있어요! 향긋한 바닐라 향 최고 ㅠㅠ", "싱글몰트 입문해서 위스키에 맛 들렸어요 ㅋㅋㅋ"],
+        "추천": ["위스키 첨이시면 발베니 진짜 강추요! 꿀 향 나고 부드러워요.", "달달한 칵테일 좋아하시면 마티니나 하이볼 추천이용!"],
+        "짠": ["짠! 🥂 기분 좋게 짠해요!", "잔 들고 짠~ 오늘 하루도 수고하셨어요!"],
+        "나이": ["저는 아홉수 29살입니다... ㅋㅋㅋ 그쪽은요?", "29살이에요! 동갑인가요? ㅎㅎ"],
+        "이름": ["이름은 지수예요! 친하게 지내요~", "지수라고 합니당 반가워용!"],
+        "혼자": ["네 오늘 완전 리얼 혼술이요 ㅋㅋㅋ 가끔 이런 날 필요하죠.", "혼자 마시니까 온전히 술맛에 집중해서 좋네요 ㅎㅎ"],
+        "합석": ["우와 ㅎㅎ 이따가 바 쪽에서 짠 한잔 같이 해요!", "오늘 기분 좋으니까 이따 자리 나면 짠해요 ㅋㅋㅋ"]
+      }
+    },
+    8: { // 성민 (Male 36, talk - Premium Whisky)
+      name: "성민",
+      default: [
+        "안녕하세요. 오늘 조용히 비즈니스 정리하고 한잔하러 왔습니다. 반갑습니다.",
+        "위스키 한잔하며 음악 듣기 참 좋은 분위기군요.",
+        "반갑습니다. 8번 테이블 성민입니다. 좋은 저녁 보내고 계신가요?",
+        "네, 반갑습니다. 오늘 위스키 향이 유독 마음에 드네요."
+      ],
+      keywords: {
+        "안녕": ["안녕하세요. 반갑습니다.", "예, 반갑습니다. 오늘 좋은 밤이네요."],
+        "술": ["맥캘란 18년 마시고 있습니다. 셰리 오크 향이 훌륭하네요.", "위스키 보틀로 시켜놓고 천천히 비우는 중입니다."],
+        "추천": ["맥캘란 18년이나 싱글몰트 종류를 드셔보길 권해드립니다.", "가벼운 칵테일로는 마티니가 괜찮습니다."],
+        "짠": ["예, 가볍게 잔 들겠습니다. 짠. 🥃", "멀리서 눈인사 나눕시다. 짠."],
+        "나이": ["저는 36살입니다. 편하게 부르십시오.", "서른여섯입니다. 직장인이고요."],
+        "이름": ["박성민이라고 합니다. 성민이라고 부르시면 됩니다.", "성민입니다. 반갑습니다."],
+        "혼자": ["네. 주말/퇴근 후에 혼자 술 마시며 정리하는 취미가 있습니다.", "혼자 조용히 사색하러 자주 옵니다."],
+        "합석": ["이따가 조용히 나가기 전에 인사 나누지요. 고맙습니다.", "이따 눈 마주치면 술잔 들고 조용히 짠 합시다."]
+      }
+    }
+  };
+
+  const p = personas[tableNum];
+  if (!p) return "안녕하세요! 반갑습니다. 😊";
+
+  // Keyword check
+  for (const key in p.keywords) {
+    if (msg.includes(key)) {
+      const list = p.keywords[key];
+      return list[Math.floor(Math.random() * list.length)];
+    }
+  }
+
+  return p.default[Math.floor(Math.random() * p.default.length)];
+}
+
 function fallbackBot(tableNum) {
   const thread = state.chats[tableNum] || [];
-  const last = thread[thread.length - 1];
-  if (last && last.senderTable === tableNum) return; // already replied by bot
+  if (thread.length === 0) return;
 
-  const isSolo = document.querySelector(`.seat-card[data-table="${tableNum}"]`)?.classList.contains('solo');
+  const last = thread[thread.length - 1];
+  if (last.senderTable === tableNum) return; // already replied
+
+  const userMsgText = last.text || "";
+  const replyText = getPersonaReply(tableNum, userMsgText);
   const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const text = isSolo
-    ? '조용히 혼술 중이에요 🤫 나중에 인사해요~'
-    : ['안녕하세요! 반갑습니다 😊', '짠! 🥂', '저도 혼술이에요 ㅎㅎ 술 뭐 드시나요?', '와 귓속말이 오다니! 신기하네요 ㅋㅋ'][Math.floor(Math.random() * 4)];
 
   // Inject bot reply directly to the firebase chat room
   const roomId = getRoomId(state.user.table, tableNum);
   db.ref(`chats/${roomId}`).push().set({
     senderTable: tableNum,
-    text: text,
+    text: replyText,
     time: time,
     isUnread: true,
     timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -999,7 +1114,7 @@ function fallbackBot(tableNum) {
   // Inject inbox notification trigger for the bot reply to standardise pipelines
   db.ref(`whisper_inboxes/${state.user.table}`).push().set({
     from: tableNum,
-    text: text,
+    text: replyText,
     time: time,
     timestamp: firebase.database.ServerValue.TIMESTAMP
   });
