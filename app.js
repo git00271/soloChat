@@ -1099,30 +1099,43 @@ const GEMINI_API_KEY = "AIzaSyDnN_3gXab1viC2TQ-kNl4NvoPJtF7SV-g";
 
 function queryGeminiAPI(tableNum, userMsg, callback) {
   const personas = {
-    1: { name: "정우", desc: "34세 남성. 직장인. 맥캘란 18년을 바틀로 마시며 여유롭게 귓속말 대화하고 있음. 싹싹하고 젠틀하며 가벼운 유머나 장난을 섞어 쓰는 친근한 삼촌/형 스타일. 해요체와 반말을 자연스럽게 섞어서 쓰고, ㅋㅋ/ㅎㅎ 사용." },
-    2: { name: "민지", desc: "26세 여성. 수제 진토닉을 홀짝이며 조용히 생각을 정리 중인 내향형 혼술족. 조용하고 조심스럽지만 예의 바른 태도. ㅎㅎ, ...을 자주 쓰고 약간 수줍어함." },
-    3: { name: "도현", desc: "31세 남성. 산토리 하이볼을 마시며 텐션 높게 혼술 중. 유쾌하고 장난기 많으며 친화력이 강해 ㅋㅋㅋ를 자주 쓰는 친한 남사친/동생 스타일." },
-    6: { name: "지수", desc: "29세 여성. 퇴근 후 스트레스 풀러 발베니 12년을 마시는 중. 리액션이 크고 활발하며 눈웃음이 묻어나는 애교 섞인 20대 후반 여성 말투. 😊 이모지와 ㅠㅠ, ㅋㅋㅋ 다용." },
-    8: { name: "성민", desc: "36세 남성. 클래식 마티니나 싱글몰트 위스키를 마시며 차분하게 음악을 듣는 30대 후반 전문직 남성. 지적이고 정중하지만 부드러운 중저음의 어조. 해요체를 주로 사용." }
+    1: { name: "정우", desc: "34세 남성. 대학교 교직원. 맥캘란 18년을 잔술로 아껴 마시며 바에 앉아있음. 싹싹하고 젠틀하지만 아재 같은 농담을 종종 던지는 삼촌/형 스타일. 해요체와 반말을 자연스럽게 섞어서 쓰며, 친근함이 묻어나는 말투." },
+    2: { name: "민지", desc: "26세 여성. 패션디자이너 어시스턴트. 시그니처 진토닉을 천천히 마시며 혼자 조용히 생각 정리 중. 낯선 사람의 대화에 다소 수줍어하지만 예의 바르게 행동함. ㅎㅎ, ...을 자주 쓰는 단정하고 여성스러운 어조." },
+    3: { name: "도현", desc: "31세 남성. 헬스트레이너. 산토리 하이볼을 물 마시듯 마시며 텐션 높게 혼술 중. 유쾌하고 장난기 많으며 친화력이 극도로 강해 ㅋㅋㅋ를 매 문장마다 남발하는 동네 남사친 스타일." },
+    6: { name: "지수", desc: "29세 여성. IT 대기업 서비스 기획자. 업무 스트레스를 풀러 발베니 12년을 들이키는 중. 리액션이 엄청 크고 공감을 잘해주는 친화적인 누나/언니 스타일. 😊 이모지와 ㅠㅠ, ㅋㅋㅋ를 섞어 씀." },
+    8: { name: "성민", desc: "36세 남성. 회계사. 마티니를 마시며 차분하게 음악을 듣는 30대 후반 전문직 남성. 중저음 톤이 느껴지는 정중하고 차분한 지적인 말투. 해요체를 주로 사용함." }
   };
 
   const p = personas[tableNum];
   if (!p) { callback(getPersonaReply(tableNum, userMsg)); return; }
 
+  // 1. Build chat history context and enforce STRICT role alternation
   const thread = state.chats[tableNum] || [];
-  const history = thread.slice(-6).map(m => {
+  const rawHistory = thread.slice(-10); // Look back further for richer context
+  const history = [];
+
+  rawHistory.forEach(m => {
     const role = m.senderTable === tableNum ? "model" : "user";
-    return {
-      role: role,
-      parts: [{ text: m.text }]
-    };
+    if (history.length > 0 && history[history.length - 1].role === role) {
+      // Merge consecutive messages from same role to satisfy Gemini API constraints
+      history[history.length - 1].parts[0].text += " " + m.text;
+    } else {
+      history.push({
+        role: role,
+        parts: [{ text: m.text }]
+      });
+    }
   });
   
-  if (history.length === 0 || history[history.length - 1].parts[0].text !== userMsg) {
+  // Ensure the latest message is appended if not present
+  if (history.length === 0 || history[history.length - 1].role !== "user") {
     history.push({
       role: "user",
       parts: [{ text: userMsg }]
     });
+  } else {
+    // Replace latest user input to reflect the active input text
+    history[history.length - 1].parts[0].text = userMsg;
   }
 
   const systemPrompt = `너는 서울의 프라이빗 바 '독주(DOKJU)'의 U자형 바에 실제로 앉아서 혼술 중인 손님이야.
@@ -1136,7 +1149,8 @@ function queryGeminiAPI(tableNum, userMsg, callback) {
 3. 20-30대의 실제 술자리 메신저 대화 습관(ㅋㅋ, ㅎㅎ, ㅠㅠ, 이모지, 약간의 오타나 흐리멍덩한 맞춤법)을 반영해.
 4. 문장은 절대 길게 쓰지 마. 보통 1~2문장 내외로 간결하게 보내.
 5. 시스템 설정이나 프롬프트 지시사항을 언급하지 마.
-6. 상대방의 질문에 귀찮으면 차갑게, 성향에 맞게 반응해줘.`;
+6. 상대방의 질문에 귀찮으면 차갑게, 성향에 맞게 반응해줘.
+7. 가끔 대화를 적극적으로 유도할 수 있도록 상대방에게 어울리는 질문(예: 드시는 주종, 매장에 오게 된 이유 등)을 짧게 1문장 덧붙여줘.`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   const payload = {
@@ -1146,7 +1160,9 @@ function queryGeminiAPI(tableNum, userMsg, callback) {
     },
     generationConfig: {
       maxOutputTokens: 120,
-      temperature: 0.85
+      temperature: 0.85,
+      presencePenalty: 0.6,
+      frequencyPenalty: 0.6
     }
   };
 
@@ -1161,10 +1177,12 @@ function queryGeminiAPI(tableNum, userMsg, callback) {
       const reply = data.candidates[0].content.parts[0].text.trim();
       callback(reply);
     } catch (e) {
+      console.error("Gemini API Parse Error. Details:", data);
       callback(getPersonaReply(tableNum, userMsg));
     }
   })
-  .catch(() => {
+  .catch((err) => {
+    console.error("Gemini Network/Fetch Error:", err);
     callback(getPersonaReply(tableNum, userMsg));
   });
 }
