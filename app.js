@@ -700,13 +700,15 @@ function startChat(tableNum) {
   state.activeChatTable = tableNum;
   state.chatView = 'room';
   
-  switchTab('chat'); // Toggle bottom nav active tab highlights
-  
-  // Slide in/Toggle Room layout displays
-  $('chat-list-view').classList.add('hidden');
-  $('chat-room-view').classList.remove('hidden');
-  hidePayLock();
-  hideSendGate();
+  if (state.activeTab !== 'chat') {
+    switchTab('chat');
+  } else {
+    // Already in chat tab, just swap local layouts
+    $('chat-list-view').classList.add('hidden');
+    $('chat-room-view').classList.remove('hidden');
+    hidePayLock();
+    hideSendGate();
+  }
   
   // Unbind previous listener if exists
   if (currentChatRef) {
@@ -1008,26 +1010,36 @@ function switchTab(tab) {
     hideSendGate();
     hidePayLock();
 
+    // Guest Routing
     if (state.mode === 'guest') {
-      state.chatView = 'list';
-      $('chat-list-view').classList.remove('hidden');
-      $('chat-room-view').classList.add('hidden');
-      renderChatListView();
+      if (state.chatView === 'room' && state.activeChatTable) {
+        $('chat-list-view').classList.add('hidden');
+        $('chat-room-view').classList.remove('hidden');
+        renderChatWindow(state.activeChatTable);
+      } else {
+        state.chatView = 'list';
+        $('chat-list-view').classList.remove('hidden');
+        $('chat-room-view').classList.add('hidden');
+        renderChatListView();
+      }
       return;
     }
     
+    // Unordered Member Routing
     if (!state.ordered) {
       showPayLock(); return;
     }
 
-    // Default view routing
-    if (state.chatView === 'list' || !state.activeChatTable) {
+    // Default Member Routing
+    if (state.chatView === 'room' && state.activeChatTable) {
+      $('chat-list-view').classList.add('hidden');
+      $('chat-room-view').classList.remove('hidden');
+      renderChatWindow(state.activeChatTable);
+    } else {
       state.chatView = 'list';
       $('chat-list-view').classList.remove('hidden');
       $('chat-room-view').classList.add('hidden');
       renderChatListView();
-    } else {
-      startChat(state.activeChatTable);
     }
   }
 
