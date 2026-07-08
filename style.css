@@ -795,7 +795,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-bottom: 80px;
+  padding-bottom: 12px;
 }
 
 /* Menu Item Row */
@@ -1222,7 +1222,7 @@ a { color: inherit; text-decoration: none; }
 .orders-header h3 { font-size: 17px; font-weight: 800; }
 .orders-header p   { font-size: 13px; color: var(--text-3); margin-top: 4px; }
 
-.orders-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 70px; }
+.orders-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
 
 .orders-empty {
   display: flex;
