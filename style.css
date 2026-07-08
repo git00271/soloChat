@@ -880,7 +880,6 @@ a { color: inherit; text-decoration: none; }
 /* ── CHAT TAB ── */
 #tab-content-chat {
   padding: 0;
-  position: relative;
 }
 
 /* Gate/Lock Overlays */
