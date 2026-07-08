@@ -19,15 +19,18 @@ const db = firebase.database();
 
 let currentChatRef = null; // Active Firebase chat room reference
 let clientUniqueId = 'dokju_cl_' + Math.random().toString(16).substring(2, 10);
+let toastTimeout = null;
+let activeToastFromTable = null;
 
 const state = {
   mode: 'guest',   // 'guest' | 'member'
   user: null,      // { nickname, gender, age, table, mood, joinDate }
   ordered: false,  // Unlocks chat features
   cart: [],
-  chats: {},       // tableNum -> [{senderTable, text, time, timestamp}]
+  chats: {},       // tableNum -> [{senderTable, text, time, timestamp, isUnread}]
   activeChatTable: null,
   activeTab: 'bar',
+  chatView: 'list', // 'list' | 'room' (mobile two-stage chat view)
   serverTables: {}, // Live Firebase database occupancy states
   tickerLogs: [
     { table: 3, item: 'Dom Pérignon', amount: 1200000 },
@@ -198,6 +201,20 @@ function bindEvents() {
   $('btn-gate-dismiss').onclick = hideSendGate;
   $('btn-unlock-go-menu').onclick = () => { hidePayLock(); switchTab('menu'); };
 
+  // Chat back button (Stage 2 -> Stage 1)
+  $('btn-chat-back').onclick = () => {
+    state.chatView = 'list';
+    state.activeChatTable = null;
+    if (currentChatRef) {
+      currentChatRef.off();
+      currentChatRef = null;
+    }
+    // Toggle views
+    $('chat-list-view').classList.remove('hidden');
+    $('chat-room-view').classList.add('hidden');
+    renderChatListView();
+  };
+
   // Chat send
   $('btn-chat-send').onclick = sendMessage;
   $('chat-input').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
@@ -209,6 +226,14 @@ function bindEvents() {
       showSendGate();
     }
   });
+
+  // Global toast click hook
+  $('global-toast').onclick = () => {
+    $('global-toast').classList.add('hidden');
+    if (activeToastFromTable !== null) {
+      startChat(activeToastFromTable);
+    }
+  };
 }
 
 // ==================== SCREEN MANAGEMENT ====================
@@ -294,6 +319,8 @@ function handleLogout() {
   // Remove presence node from database
   if (state.user && db) {
     db.ref(`tables/${state.user.table}`).remove();
+    // Unbind inbox listener
+    db.ref(`whisper_inboxes/${state.user.table}`).off();
   }
 
   LS.clearUser();
@@ -380,7 +407,7 @@ function initFirebaseSync() {
       if (hasCompleted) {
         state.ordered = true;
         if (state.activeTab === 'chat') {
-          renderChatWindow(state.activeChatTable);
+          renderChatListView();
         }
       }
     });
@@ -399,6 +426,18 @@ function initFirebaseSync() {
         }
         renderOrderHistory();
         switchTab('chat');
+      }
+    });
+
+    // 6. Listen for incoming whispers notifications queue (inbox)
+    db.ref(`whisper_inboxes/${u.table}`).on('child_added', (snapshot) => {
+      const msg = snapshot.val();
+      if (msg) {
+        // Clear inbox queue item immediately to avoid database footprint
+        db.ref(`whisper_inboxes/${u.table}/${snapshot.key}`).remove();
+        
+        // Handle incoming message routing
+        onWhisperIn(msg.from, msg.text, msg.time);
       }
     });
   }
@@ -421,6 +460,7 @@ function refreshSeatMap() {
       card.querySelector('.seat-av').textContent = '＋';
       card.querySelector('.seat-mood').textContent = '빈자리';
       card.querySelector('.seat-mood').className = 'seat-mood';
+      card.classList.remove('has-unread-msg');
       continue;
     }
 
@@ -430,6 +470,11 @@ function refreshSeatMap() {
     const moodEl = card.querySelector('.seat-mood');
     moodEl.textContent = isSolo ? '혼술' : '대화';
     moodEl.className = 'seat-mood ' + (isSolo ? 'solo-mood' : 'welcome-mood');
+
+    // Flashing unread highlight on seat card if there are unread whispers
+    const thread = state.chats[t] || [];
+    const hasUnread = thread.some(m => m.senderTable === t && m.isUnread);
+    card.classList.toggle('has-unread-msg', hasUnread);
   }
 }
 
@@ -474,7 +519,6 @@ function renderFlex() {
 }
 
 function addTickerLog(table, item, amount) {
-  // Prevent duplicate insertion
   const duplicate = state.tickerLogs.some(log => log.table === table && log.item === item && log.amount === amount);
   if (duplicate) return;
 
@@ -563,7 +607,7 @@ function handleCheckout() {
   const hasTip = state.cart.find(i => i.cat === 'tips');
 
   state.cart.forEach(item => {
-    // 2. Save locally for order persistence
+    // 2. Save locally for order history
     LS.addOrder({ id: Date.now() + Math.random(), name: item.name, icon: item.icon, price: item.price, date, time });
 
     // 3. Broadcast high values/cheers to Firebase logs
@@ -652,16 +696,17 @@ function hidePayLock() {
   $('chat-lock-overlay').classList.add('hidden');
 }
 
-function getRoomId(t1, t2) {
-  return t1 < t2 ? `${t1}_${t2}` : `${t2}_${t1}`;
-}
-
 function startChat(tableNum) {
   state.activeChatTable = tableNum;
-  switchTab('chat');
+  state.chatView = 'room';
+  
+  switchTab('chat'); // Toggle bottom nav active tab highlights
+  
+  // Slide in/Toggle Room layout displays
+  $('chat-list-view').classList.add('hidden');
+  $('chat-room-view').classList.remove('hidden');
   hidePayLock();
   hideSendGate();
-  renderChatSidebar();
   
   // Unbind previous listener if exists
   if (currentChatRef) {
@@ -680,29 +725,72 @@ function startChat(tableNum) {
     state.chats[tableNum] = list;
     LS.saveChats(state.chats);
     
+    // Clear unread flag for this room dynamically in Firebase DB
+    if (state.mode === 'member' && state.user) {
+      Object.keys(messages).forEach(msgId => {
+        if (messages[msgId].senderTable !== state.user.table && messages[msgId].isUnread) {
+          db.ref(`chats/${roomId}/${msgId}/isUnread`).set(false);
+        }
+      });
+    }
+
     if (state.activeChatTable === tableNum && state.activeTab === 'chat') {
       renderChatWindow(tableNum);
     }
   });
 }
 
-function renderChatSidebar() {
-  const sidebar = $('chat-sidebar');
-  sidebar.innerHTML = '';
+// Stage 1: Full width Chat List View renderer
+function renderChatListView() {
+  const container = $('chat-threads-container');
+  container.innerHTML = '';
+
   const tableList = [1, 2, 3, 6, 8];
-  
+  let rowsCount = 0;
+
   tableList.forEach(t => {
     if (state.user && t === state.user.table) return;
-    const card = document.querySelector(`.seat-card[data-table="${t}"]`);
-    const icon = card?.querySelector('.seat-av')?.textContent || '👤';
-    const msgs = state.chats[t] || [];
-    const hasUnread = msgs.length > 0 && msgs[msgs.length - 1].senderTable !== state.user?.table && msgs[msgs.length - 1].isUnread;
 
-    const node = document.createElement('div');
-    node.className = `chat-thread${state.activeChatTable === t ? ' active' : ''}${hasUnread && state.activeChatTable !== t ? ' has-unread' : ''}`;
-    node.innerHTML = `<span class="ct-num">${t}번</span><span class="ct-icon">${icon}</span>`;
-    node.addEventListener('click', () => startChat(t));
-    sidebar.appendChild(node);
+    rowsCount++;
+    const card = document.querySelector(`.seat-card[data-table="${t}"]`);
+    const avatar = card?.querySelector('.seat-av')?.textContent || '👤';
+    const isSolo = card?.classList.contains('solo');
+    const welcome = card?.classList.contains('welcome');
+    const moodText = isSolo ? '🤫 혼술' : (welcome ? '🟢 대화' : '');
+    
+    // Get latest message data
+    const thread = state.chats[t] || [];
+    let snippet = '아직 대화 내역이 없습니다.';
+    let lastTime = '';
+    let unreadCount = 0;
+
+    if (thread.length > 0) {
+      const lastMsg = thread[thread.length - 1];
+      snippet = lastMsg.text;
+      lastTime = lastMsg.time;
+      unreadCount = thread.filter(m => m.senderTable === t && m.isUnread).length;
+    }
+
+    const row = document.createElement('div');
+    row.className = `chat-list-row${unreadCount > 0 ? ' has-unread' : ''}`;
+    row.innerHTML = `
+      <div class="row-av">
+        <span>${avatar}</span>
+      </div>
+      <div class="row-info">
+        <div class="row-title-line">
+          <span class="row-title">${t}번 테이블 ${moodText ? `(${moodText})` : ''}</span>
+          <span class="row-time">${lastTime}</span>
+        </div>
+        <div class="row-msg-snippet">${snippet}</div>
+      </div>
+      <div class="row-right">
+        ${unreadCount > 0 ? `<span class="row-unread-badge">${unreadCount}</span>` : ''}
+      </div>
+    `;
+
+    row.addEventListener('click', () => startChat(t));
+    container.appendChild(row);
   });
 }
 
@@ -742,14 +830,6 @@ function renderChatWindow(tableNum) {
     });
   }
   area.scrollTop = area.scrollHeight;
-
-  // Mark all unread flags as read locally
-  if (state.mode === 'member') {
-    thread.forEach(m => {
-      if (m.senderTable !== state.user.table) m.isUnread = false;
-    });
-    LS.saveChats(state.chats);
-  }
 
   // Manage Input element disabled states
   const inputEl = $('chat-input');
@@ -793,22 +873,97 @@ function sendMessage() {
     timestamp: firebase.database.ServerValue.TIMESTAMP
   });
 
+  // 2. Submit push notification record to targets inbox queue
+  const inboxRef = db.ref(`whisper_inboxes/${t}`).push();
+  inboxRef.set({
+    from: state.user.table,
+    text: text,
+    time: time,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
+
   input.value = '';
 
-  // 2. Chatbot response fallback triggers if target seat is a static mock offline table
+  // 3. Chatbot response fallback triggers if target seat is a static mock offline table
   const hasRealPlayer = !!state.serverTables[t];
   if (!hasRealPlayer) {
     setTimeout(() => fallbackBot(t), 2200);
   }
 }
 
+// Global router for incoming whispers (triggers toasts, sound, alerts, and unread indicators)
 function onWhisperIn(fromTable, text, time) {
-  // Real whisper is received in real-time. Since we listen to /chats/{room_id},
-  // the callback handles it. We just play an alert or trigger visual updates if in other tab.
-  if (state.activeChatTable !== fromTable || state.activeTab !== 'chat') {
-    renderChatSidebar();
-    $('chat-nav-dot').classList.remove('hidden');
+  // Push message to local cache if not already loaded by room listener
+  if (!state.chats[fromTable]) state.chats[fromTable] = [];
+  const thread = state.chats[fromTable];
+  
+  const duplicate = thread.length > 0 && thread[thread.length - 1].text === text && thread[thread.length - 1].time === time;
+  if (!duplicate) {
+    thread.push({
+      senderTable: fromTable,
+      text: text,
+      time: time,
+      isUnread: true,
+      timestamp: Date.now()
+    });
+    LS.saveChats(state.chats);
   }
+
+  // 1. Play Synthesized phone chime alert (ting!)
+  playWhisperChime();
+
+  // 2. Refresh Seat Map card highlight states
+  refreshSeatMap();
+
+  // 3. Handle UI router transitions
+  if (state.activeChatTable === fromTable && state.activeTab === 'chat' && state.chatView === 'room') {
+    // Current active room -> render immediately
+    renderChatWindow(fromTable);
+  } else {
+    // Other tab / other room -> show global toast notification & nav red dots
+    showGlobalToast(fromTable, text);
+    
+    if (state.activeTab === 'chat' && state.chatView === 'list') {
+      renderChatListView();
+    } else {
+      $('chat-nav-dot').classList.remove('hidden');
+    }
+  }
+}
+
+// Display global toast sliding notifications banner
+function showGlobalToast(fromTable, text) {
+  activeToastFromTable = fromTable;
+  
+  $('toast-title').textContent = `${fromTable}번 테이블 귓속말`;
+  $('toast-text').textContent = `"${text}"`;
+  $('global-toast').classList.remove('hidden');
+
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    $('global-toast').classList.add('hidden');
+  }, 5000);
+}
+
+// Phone chime synthesized chime
+function playWhisperChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    let osc = ctx.createOscillator();
+    let gain = ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1180, ctx.currentTime); // High sweet bell chime
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) {}
 }
 
 function fallbackBot(tableNum) {
@@ -831,6 +986,14 @@ function fallbackBot(tableNum) {
     isUnread: true,
     timestamp: firebase.database.ServerValue.TIMESTAMP
   });
+
+  // Inject inbox notification trigger for the bot reply to standardise pipelines
+  db.ref(`whisper_inboxes/${state.user.table}`).push().set({
+    from: tableNum,
+    text: text,
+    time: time,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
 }
 
 // ==================== TAB SWITCHING ====================
@@ -846,15 +1009,26 @@ function switchTab(tab) {
     hidePayLock();
 
     if (state.mode === 'guest') {
-      renderChatSidebar();
-      if (state.activeChatTable) renderChatWindow(state.activeChatTable);
+      state.chatView = 'list';
+      $('chat-list-view').classList.remove('hidden');
+      $('chat-room-view').classList.add('hidden');
+      renderChatListView();
       return;
     }
+    
     if (!state.ordered) {
       showPayLock(); return;
     }
-    renderChatSidebar();
-    if (state.activeChatTable) renderChatWindow(state.activeChatTable);
+
+    // Default view routing
+    if (state.chatView === 'list' || !state.activeChatTable) {
+      state.chatView = 'list';
+      $('chat-list-view').classList.remove('hidden');
+      $('chat-room-view').classList.add('hidden');
+      renderChatListView();
+    } else {
+      startChat(state.activeChatTable);
+    }
   }
 
   if (tab === 'orders') renderOrderHistory();

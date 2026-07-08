@@ -14,6 +14,15 @@
 
 <div class="app-root">
 
+  <!-- Global Toast Alert Banner -->
+  <div id="global-toast" class="global-toast hidden">
+    <span class="toast-ico">💬</span>
+    <div class="toast-body">
+      <div id="toast-title" class="toast-title">3번 테이블</div>
+      <div id="toast-text" class="toast-text">"메시지가 도착했습니다."</div>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════════
        SCREEN: GATE (랜딩)
   ══════════════════════════════════════════ -->
@@ -343,21 +352,33 @@
           </div>
         </div>
 
-        <!-- Chat UI -->
-        <div class="chat-layout">
-          <div id="chat-sidebar" class="chat-sidebar"></div>
-          <div class="chat-main">
-            <div id="chat-header" class="chat-hdr">
-              <span id="chat-hdr-name">대화 상대를 선택하세요</span>
+        <!-- Chat List View (Stage 1) -->
+        <div id="chat-list-view" class="chat-list-view">
+          <div class="chat-list-header">
+            <h3>💬 귓속말 대화 목록</h3>
+            <p>테이블을 터치하여 귓속말을 나눠보세요</p>
+          </div>
+          <div id="chat-threads-container" class="chat-threads-container">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Chat Room View (Stage 2) -->
+        <div id="chat-room-view" class="chat-room-view hidden">
+          <div id="chat-header" class="chat-hdr">
+            <button id="btn-chat-back" class="btn-chat-back">◀ 목록</button>
+            <div class="chat-hdr-center">
+              <span id="chat-hdr-name">대화 상대</span>
               <span id="chat-hdr-mood"></span>
             </div>
-            <div id="chat-msgs" class="chat-msgs">
-              <div class="chat-empty-hint">좌측 목록에서 테이블을 선택하세요</div>
-            </div>
-            <div class="chat-input-row">
-              <input id="chat-input" type="text" placeholder="귓속말 입력..." autocomplete="off">
-              <button id="btn-chat-send" class="btn-send">→</button>
-            </div>
+            <div class="chat-hdr-right-dummy"></div>
+          </div>
+          <div id="chat-msgs" class="chat-msgs">
+            <!-- Messages populated via JS -->
+          </div>
+          <div class="chat-input-row">
+            <input id="chat-input" type="text" placeholder="귓속말 입력..." autocomplete="off">
+            <button id="btn-chat-send" class="btn-send">→</button>
           </div>
         </div>
       </div>
